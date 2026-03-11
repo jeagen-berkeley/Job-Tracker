@@ -1,10 +1,11 @@
 import { useState } from "react";
 import type { Prospect } from "@shared/schema";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Trash2, Pencil, Flame, ThumbsUp, Minus } from "lucide-react";
+import { ExternalLink, Trash2, Pencil, Flame, ThumbsUp, Minus, DollarSign } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { formatSalary } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -106,6 +107,17 @@ export function ProspectCard({ prospect }: { prospect: Prospect }) {
         <div className="flex items-center gap-1.5 flex-wrap">
           <InterestIndicator level={prospect.interestLevel} />
         </div>
+
+        {(prospect.salaryMin != null || prospect.salaryMax != null) && (
+          <div className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium" data-testid={`text-salary-${prospect.id}`}>
+            <DollarSign className="w-3 h-3 shrink-0" />
+            {prospect.salaryMin != null && prospect.salaryMax != null
+              ? `${formatSalary(prospect.salaryMin)} – ${formatSalary(prospect.salaryMax)}`
+              : prospect.salaryMin != null
+              ? `From ${formatSalary(prospect.salaryMin)}`
+              : `Up to ${formatSalary(prospect.salaryMax)}`}
+          </div>
+        )}
 
         {prospect.jobUrl && (
           <a

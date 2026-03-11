@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { SalaryInput } from "@/components/salary-input";
 
 export function AddProspectForm({ onSuccess }: { onSuccess?: () => void }) {
   const { toast } = useToast();
@@ -37,6 +38,8 @@ export function AddProspectForm({ onSuccess }: { onSuccess?: () => void }) {
       status: "Bookmarked",
       interestLevel: "Medium",
       notes: "",
+      salaryMin: null,
+      salaryMax: null,
     },
   });
 
@@ -151,6 +154,46 @@ export function AddProspectForm({ onSuccess }: { onSuccess?: () => void }) {
                     ))}
                   </SelectContent>
                 </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="salaryMin"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Salary Min (optional)</FormLabel>
+                <FormControl>
+                  <SalaryInput
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="e.g. $80,000"
+                    data-testid="input-salary-min"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="salaryMax"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Salary Max (optional)</FormLabel>
+                <FormControl>
+                  <SalaryInput
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="e.g. $120,000"
+                    data-testid="input-salary-max"
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}

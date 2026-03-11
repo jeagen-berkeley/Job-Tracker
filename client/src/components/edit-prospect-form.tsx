@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { SalaryInput } from "@/components/salary-input";
 
 interface EditProspectFormProps {
   prospect: Prospect;
@@ -42,6 +43,8 @@ export function EditProspectForm({ prospect, onSuccess }: EditProspectFormProps)
       status: prospect.status as InsertProspect["status"],
       interestLevel: prospect.interestLevel as InsertProspect["interestLevel"],
       notes: prospect.notes ?? "",
+      salaryMin: prospect.salaryMin ?? null,
+      salaryMax: prospect.salaryMax ?? null,
     },
   });
 
@@ -155,6 +158,46 @@ export function EditProspectForm({ prospect, onSuccess }: EditProspectFormProps)
                     ))}
                   </SelectContent>
                 </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="salaryMin"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Salary Min (optional)</FormLabel>
+                <FormControl>
+                  <SalaryInput
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="e.g. $80,000"
+                    data-testid="input-edit-salary-min"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="salaryMax"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Salary Max (optional)</FormLabel>
+                <FormControl>
+                  <SalaryInput
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="e.g. $120,000"
+                    data-testid="input-edit-salary-max"
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}

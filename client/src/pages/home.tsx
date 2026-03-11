@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import type { Prospect } from "@shared/schema";
 import { STATUSES } from "@shared/schema";
 import { ProspectCard } from "@/components/prospect-card";
@@ -13,8 +13,20 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 const columnColors: Record<string, string> = {
   Bookmarked: "bg-blue-500",
@@ -37,16 +49,27 @@ const interestFilterColors: Record<InterestFilter, string> = {
   Low: "text-muted-foreground",
 };
 
+type PendingMove = {
+  prospectId: number;
+  prospectName: string;
+  fromStatus: string;
+  toStatus: string;
+} | null;
+
 function KanbanColumn({
   status,
   prospects,
   isLoading,
+  onDrop,
 }: {
   status: string;
   prospects: Prospect[];
   isLoading: boolean;
+  onDrop: (prospectId: number, fromStatus: string) => void;
 }) {
   const [interestFilter, setInterestFilter] = useState<InterestFilter>("All");
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
 
   const filteredProspects =
     interestFilter === "All"
@@ -55,10 +78,39 @@ function KanbanColumn({
 
   const columnSlug = status.replace(/\s+/g, "-").toLowerCase();
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const prospectId = parseInt(e.dataTransfer.getData("prospectId"), 10);
+    const fromStatus = e.dataTransfer.getData("fromStatus");
+    if (!isNaN(prospectId) && fromStatus !== status) {
+      onDrop(prospectId, fromStatus);
+    }
+  };
+
   return (
     <div
-      className="flex flex-col min-w-[260px] max-w-[320px] w-full bg-muted/40 rounded-md"
+      className={`flex flex-col min-w-[260px] max-w-[320px] w-full rounded-md transition-all duration-150 ${
+        isDragOver
+          ? "bg-primary/10 ring-2 ring-primary/30"
+          : "bg-muted/40"
+      }`}
       data-testid={`column-${columnSlug}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/50">
         <div className={`w-2 h-2 rounded-full shrink-0 ${columnColors[status] || "bg-gray-400"}`} />
@@ -101,7 +153,9 @@ function KanbanColumn({
             </>
           ) : filteredProspects.length === 0 ? (
             <div
-              className="flex flex-col items-center justify-center py-8 text-center"
+              className={`flex flex-col items-center justify-center py-8 text-center rounded-md transition-colors ${
+                isDragOver ? "border-2 border-dashed border-primary/40" : ""
+              }`}
               data-testid={`empty-${columnSlug}`}
             >
               <p className="text-xs text-muted-foreground">
@@ -110,7 +164,23 @@ function KanbanColumn({
             </div>
           ) : (
             filteredProspects.map((prospect) => (
-              <ProspectCard key={prospect.id} prospect={prospect} />
+              <div
+                key={prospect.id}
+                draggable
+                onDragStart={(e) => {
+                  setDraggingId(prospect.id);
+                  e.dataTransfer.setData("prospectId", String(prospect.id));
+                  e.dataTransfer.setData("fromStatus", status);
+                  e.dataTransfer.effectAllowed = "move";
+                }}
+                onDragEnd={() => setDraggingId(null)}
+                className={`transition-opacity duration-150 ${
+                  draggingId === prospect.id ? "opacity-40" : "opacity-100"
+                }`}
+                data-testid={`draggable-${prospect.id}`}
+              >
+                <ProspectCard prospect={prospect} />
+              </div>
             ))
           )}
         </div>
@@ -121,10 +191,46 @@ function KanbanColumn({
 
 export default function Home() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [pendingMove, setPendingMove] = useState<PendingMove>(null);
+  const { toast } = useToast();
 
   const { data: prospects, isLoading } = useQuery<Prospect[]>({
     queryKey: ["/api/prospects"],
   });
+
+  const statusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: string }) => {
+      await apiRequest("PATCH", `/api/prospects/${id}`, { status });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/prospects"] });
+      toast({ title: "Status updated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update status", variant: "destructive" });
+    },
+  });
+
+  const handleDrop = (prospectId: number, fromStatus: string, toStatus: string) => {
+    const prospect = prospects?.find((p) => p.id === prospectId);
+    if (!prospect) return;
+    setPendingMove({
+      prospectId,
+      prospectName: prospect.companyName,
+      fromStatus,
+      toStatus,
+    });
+  };
+
+  const confirmMove = () => {
+    if (!pendingMove) return;
+    statusMutation.mutate({ id: pendingMove.prospectId, status: pendingMove.toStatus });
+    setPendingMove(null);
+  };
+
+  const cancelMove = () => {
+    setPendingMove(null);
+  };
 
   const groupedByStatus = STATUSES.reduce(
     (acc, status) => {
@@ -180,10 +286,36 @@ export default function Home() {
               status={status}
               prospects={groupedByStatus[status] || []}
               isLoading={isLoading}
+              onDrop={(prospectId, fromStatus) => handleDrop(prospectId, fromStatus, status)}
             />
           ))}
         </div>
       </main>
+
+      <AlertDialog open={pendingMove !== null} onOpenChange={(open) => !open && cancelMove()}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Move Prospect</AlertDialogTitle>
+            <AlertDialogDescription>
+              Move <strong>{pendingMove?.prospectName}</strong> from{" "}
+              <strong>{pendingMove?.fromStatus}</strong> to{" "}
+              <strong>{pendingMove?.toStatus}</strong>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={cancelMove} data-testid="button-cancel-move">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmMove}
+              disabled={statusMutation.isPending}
+              data-testid="button-confirm-move"
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

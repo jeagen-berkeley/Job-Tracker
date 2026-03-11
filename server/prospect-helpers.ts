@@ -45,3 +45,11 @@ export function validateProspect(data: Record<string, unknown>): { valid: boolea
 export function isTerminalStatus(status: string): boolean {
   return status === "Rejected" || status === "Withdrawn" || status === "Offer";
 }
+
+export function isValidStatusTransition(fromStatus: string, toStatus: string): boolean {
+  return (
+    STATUSES.includes(fromStatus as (typeof STATUSES)[number]) &&
+    STATUSES.includes(toStatus as (typeof STATUSES)[number]) &&
+    fromStatus !== toStatus
+  );
+}
